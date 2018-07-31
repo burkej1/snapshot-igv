@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 Script to generate an IGV script to snapshot all variants in a given tsv in the
 relevant bam files.
@@ -6,6 +7,17 @@ TODO: Detail expected input format
 '''
 import os
 import argparse
+
+
+class SplitArg(argparse.Action):
+    '''
+    A custom argparse action to split a comma separated string.
+    Wholly unnecessary and overcomplicated.
+    '''
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+    def __call__(self, parser, namespace, values, option_string):
+        setattr(namespace, self.dest, values.split(','))
 
 
 def parse_args():
@@ -22,25 +34,40 @@ def parse_args():
     - More?
     Returns arguments.
     '''
-    parser = argparse.ArgumentParser(description="Takes a tsv with a list of variants and BS numbers. Creates snapshot" \
-                                                 "commands for all bam files matching the bs number.",
+    parser = argparse.ArgumentParser(description="Takes a tsv with a list of variants and identifiers. Creates snapshot" \
+                                                 "commands for all bam files matching the identifier number.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-i", "--inputtsv", help="Input tsv file.", required=True)
-    parser.add_argument("-b", "--bamdir", help="Directory containing bam files.", default="bams/")
-    parser.add_argument("-d", "--snapshotdirectory", help="Where the snapshots should be saved.", default=os.getcwd())
-    parser.add_argument("-o", "--batchoutput", help="Name of output batch file.", default="igvbatchscript.txt")
-    parser.add_argument("-w", "--windowsize", help="Width of snapshot in number of bases.", default=150)
-    parser.add_argument("-l", "--intervalfile", help="File containing intervals in BED format.", default=None)
-    parser.add_argument("-H", "--panelheight", help="Max height for snapshots.", default="10000")
+    parser.add_argument("-i", "--inputtsv",
+                        help="Input tsv file.",
+                        required=True)
+    parser.add_argument("-b", "--bamdir",
+                        help="Directory containing bam files.",
+                        default="bams/")
+    parser.add_argument("-d", "--snapshotdirectory",
+                        help="Where the snapshots should be saved.",
+                        default=os.getcwd())
+    parser.add_argument("-o", "--batchoutput",
+                        help="Name of output batch file.",
+                        default="igvbatchscript.txt")
+    parser.add_argument("-w", "--windowsize",
+                        help="Width of snapshot in number of bases.",
+                        default=150)
+    parser.add_argument("-H", "--panelheight",
+                        help="Max height for snapshots.",
+                        default="10000")
+    parser.add_argument("-n", "--cols",
+                        help="Comma separated list of column names to use (e.g. chrom,pos,identifier)",
+                        default=["chrom", "start", "ID"],
+                        action=SplitArg)
     return parser.parse_args()
 
 
 def process_tsv(args, snapshot_func):
     '''
-    Reads tsv line by line, extracts chromosome, position and relevant BSID for each variant.
-    Searches the bam folder for any bam files corresponding to the given BSID, continues if no
+    Reads tsv line by line, extracts chromosome, position and relevant ID for each variant.
+    Searches the bam folder for any bam files corresponding to the given ID, continues if no
     matching bam files are found.
-    Passes the list of matching bams, variant information and the BSID to the script generation
+    Passes the list of matching bams, variant information and the ID to the script generation
     snapshot function and extends the script array with the result.
 
     Returns properly formatted IGV script to snapshot all variants.
@@ -50,15 +77,21 @@ def process_tsv(args, snapshot_func):
         header = {c: i for i, c in enumerate(inputtsv.readline().rstrip('\n').split('\t'))}
         for line in inputtsv:
             l = line.rstrip('\n').split('\t')
-            # TODO: Replace these with correct column names
-            variant = (l[header["chrom"]], l[header["start"]])
-            bsid = l[header["BS"]]
-            # NOTE: abspath behaves strangely with symlinks, probably don't use
-            # bams = [os.path.abspath(f) for f in os.listdir(args.bamdir) if f.endswith(".bam") and bsid in f]
-            bams = [args.bamdir + f for f in os.listdir(args.bamdir) if f.endswith(".bam") and bsid in f]
+            variant = (l[header[args.cols[0]]], l[header[args.cols[1]]])
+            bam_ids = [i.strip() for i in l[header[args.cols[2]]].split(',')]
+            bams = [os.path.abspath(args.bamdir) + '/' + f for bam_id in bam_ids for f in os.listdir(args.bamdir)
+                    if f.endswith(".bam") and bam_id in f]
             if not bams: continue
-            igv_script.extend(snapshot_func(variant, bams, bsid))
+            igv_script.extend(snapshot_func(variant, bams, bam_ids))
     return igv_script
+
+
+def calculate_window(pos, size):
+    '''Calculates start and end of the window to snapshot based on windowsize and
+    variant position'''
+    start = int(float(pos) - float(size) / 2)
+    end   = int(float(pos) + float(size) / 2)
+    return (start, end)
 
 
 def create_snapshot_func(args):
@@ -68,20 +101,19 @@ def create_snapshot_func(args):
     Args are accessible by snapshot_var function since they're passed to the outer scope
     so it can access necessary variables (windowsize, windowheight, etc.)
     '''
-    def snapshot_var(variant, bams, bsid):
+    def snapshot_var(variant, bams, bam_ids):
         '''
         Creates a chunk of IGV script to snapshot a given variant in a given list of bam files.
         Calculates the start and end of the view position based on the desired window size.
         '''
         script = ["new",
                   "genome b37",
-                  "snapshotDirectory " + args.snapshotdirectory,
-                  "maxPanelHeight " + args.panelheight]
-        script += ["load " + b for b in bams]
-        start = int(float(variant[1]) - float(args.windowsize) / 2)
-        end   = int(float(variant[1]) + float(args.windowsize) / 2)
-        script.append("goto {}:{}-{}".format(variant[0], start, end))
-        script.append("snapshot {}_chr{}_pos{}.png".format(bsid, variant[0], variant[1]))
+                  "snapshotDirectory " + os.path.abspath(args.snapshotdirectory),
+                  "maxPanelHeight "    + args.panelheight]
+        script.extend(["load " + b for b in bams])
+        script.append("goto {}:{}-{}".format(variant[0], *calculate_window(variant[1], args.windowsize)))
+        script.append("snapshot {}_chr{}_pos{}.png".format('-'.join(bam_ids), *variant))
+        # TODO: Add checking of filename in snapshot directory for continue mode
         return script
     return snapshot_var
 
