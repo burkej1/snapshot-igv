@@ -1,8 +1,8 @@
-# snapshot-igv
+## Description
 
-Python script to generate an IGV batch script snapshot a list of variants in tsv format.
+Python script to generate an IGV batch script to snapshot a list of variants in tsv format.
 
-# Arguments
+## Arguments
 
 ```
 usage: create_igv_snapshot_batch.py [-h] -i INPUTTSV [-b BAMDIR]
@@ -32,22 +32,32 @@ optional arguments:
                         'ID'])
 ```
 
-# Usage
+## Usage
 
-Takes a tsv containing a list of variants in the following format (ID column can contain multiple comma separated identifiers):
+Clone the script and ensure python 3 is in your path:
+
+```
+$ git clone https://github.com/burkej1/snapshot-igv/
+$ module load python/3.6.2
+```
+
+
+Takes a tsv containing a list of variants in the following format (ID column can contain multiple comma separated identifiers).
 
 | chrom | start | ID |
 | --- | --- | --- |
 | 1 | 1234 | ID1234 |
 | 1 | 1237 | ID1234,ID1789 |
 
-Columns can be in any order, names are used to extract necessary information.
+Columns can be in any order and extra columns are ignored, names are used to extract necessary information. For each variant, any bams containing any IDs in the ID column will be loaded together when the variant is snapshot.
+
 
 Default column names can be changed with the `--cols` option (order is important):
 
 ```
 --cols chromosome,position,identifier
 ```
+
 
 If bam files are spread across multiple folders symlinking into a single folder is an easy way to deal with it:
 ```
@@ -59,9 +69,10 @@ $ for ((x=1; x<4; x++)) {
 > }
 ```
 
-Finally, given a correctly formatted input tsv, a folder containing bam files of interest and a directory to save the snapshots run the script:
+
+Given a correctly formatted input tsv, a folder containing bam files of interest and a directory to save the snapshots run the script:
 ```
-python create_igv_snapshot_batch.py -i input_tsv.tsv -o igv_batch_script.txt -b all_bams/ -d snapshotdir/
+python snapshot-igv/create_igv_snapshot_batch.py -i input_tsv.tsv -o igv_batch_script.txt -b all_bams/ -d snapshotdir/
 ```
 
 Finally, open IGV, select tools, run batch and select the file output by the script (above, igv_batch_script.txt).
