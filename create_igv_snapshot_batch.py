@@ -2,8 +2,6 @@
 '''
 Script to generate an IGV script to snapshot all variants in a given tsv in the
 relevant bam files.
-NOTE: Python3
-TODO: Detail expected input format
 '''
 import os
 import argparse
@@ -34,7 +32,7 @@ def parse_args():
     - More?
     Returns arguments.
     '''
-    parser = argparse.ArgumentParser(description="Takes a tsv with a list of variants and identifiers. Creates snapshot" \
+    parser = argparse.ArgumentParser(description="Takes a tsv with a list of variants and identifiers. Creates snapshot " \
                                                  "commands for all bam files matching the identifier number.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--inputtsv",
@@ -113,7 +111,7 @@ def create_snapshot_func(args):
         script.extend(["load " + b for b in bams])
         script.append("goto {}:{}-{}".format(variant[0], *calculate_window(variant[1], args.windowsize)))
         script.append("snapshot {}_chr{}_pos{}.png".format('-'.join(bam_ids), *variant))
-        # TODO: Add checking of filename in snapshot directory for continue mode
+        # TODO: Add checking of filename in snapshot directory to allow resuming if interrupted
         return script
     return snapshot_var
 
