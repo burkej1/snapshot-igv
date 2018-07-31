@@ -9,7 +9,7 @@ usage: create_igv_snapshot_batch.py [-h] -i INPUTTSV [-b BAMDIR]
                                     [-d SNAPSHOTDIRECTORY] [-o BATCHOUTPUT]
                                     [-w WINDOWSIZE] [-H PANELHEIGHT] [-n COLS]
 
-Takes a tsv with a list of variants and identifiers. Creates snapshotcommands
+Takes a tsv with a list of variants and identifiers. Creates snapshot commands
 for all bam files matching the identifier number.
 
 optional arguments:
